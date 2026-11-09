@@ -1,6 +1,6 @@
 # Desqueezer
 
-**Desqueezer** is a Lightroom plugin that batch-applies an anamorphic desqueeze factor to selected DNG files by modifying their metadata using `exiftool`.
+**Desqueezer** is a Lightroom plugin that batch-applies an anamorphic desqueeze factor to selected DNG files (and, in this fork, Sony ARW files) by modifying DNG metadata using `exiftool`.
 
 **❗Please note: This plugin irreversibly changes the metadata. Please backup your photos before use.**
 
@@ -17,7 +17,7 @@ Before running the plugin, make sure the following setup steps are completed:
 
 ### 1. Install `exiftool`
 
-This plugin uses `exiftool` to modify DNG metadata.  
+This plugin uses `exiftool` to set the DNG `DefaultScale` metadata tag, which Lightroom uses to desqueeze.  
 Install it via [Homebrew](https://formulae.brew.sh/formula/exiftool):
 
 ```bash
@@ -32,12 +32,25 @@ From the root of the plugin directory, run:
 chmod +x ./scripts/desqueezer.sh
 ```
 
-### 3. Install Adobe DNG Converter (for Sony ARW and other non-DNG raws)
+### 3. Install Adobe DNG Converter (needed for Sony ARW and other non-DNG raws)
 
-This fork also handles Sony `.ARW` files (the `DSC0xxxx.ARW` files from an a7 camera).
-For each selected ARW it uses the free [Adobe DNG Converter](https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html)
-to create a `.dng` next to the original, sets the desqueeze factor on the new DNG,
-and adds it to your catalog. The ARW is never modified. Selected DNGs are edited in place as before.
+Lightroom only honors the desqueeze tag on DNG files, so ARW files must first be converted to DNG.
+This fork does that for you using the free Adobe DNG Converter:
+
+1. Download **Adobe DNG Converter** for macOS from the
+   [Adobe download page](https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html) (free, Adobe account not required).
+2. Run the installer. The app must end up at exactly:
+   `/Applications/Adobe DNG Converter.app`
+   (the plugin calls `/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter`).
+3. Open the app once so macOS can approve it, then quit it. You never need to use its window; the plugin runs it in the background.
+
+How ARW handling works:
+
+- For each selected `.arw`, the plugin creates `<same name>.dng` in the **same folder** (e.g. `DSC06241.ARW` → `DSC06241.dng`).
+- The desqueeze factor is written to the new DNG, and the DNG is added to your Lightroom catalog automatically.
+- Your original ARW is **never modified**.
+- If `<name>.dng` already exists, that file is skipped (nothing is overwritten). Delete the old DNG if you want to redo it.
+- Selected `.dng` files are still edited in place, as in the original plugin.
 
 ### 4. (Optional) Install other required `brew` packages
 
@@ -68,16 +81,24 @@ You should now see **"Adrian Kulik Anamorphic Utilities → Desqueezer"** as an 
 ## 🏃 Running the Plugin
 
 ![Plugin Interface showcase](https://raw.githubusercontent.com/adriankulik/Desqueezer/aacdfea07d6af846b4a4357e2cb841df042e3236/assets/Desqueezer_ui.gif)
-1. Select the photos you want to desqueeze.
+1. Select the photos you want to desqueeze (Sony `.ARW` and/or `.dng`).
 2. Run **"Adrian Kulik Anamorphic Utilities → Desqueezer"** by clicking one of the following options:
    - `Library → Plug-in Extras`.
    - `File → Plug-in Extras`.
 3. Choose:
-   - Your squeeze factor.
+   - Your squeeze factor (e.g. `1.6` for a Sirui Saturn 1.6x).
    - Whether the photo is shot as vertical anamorphic or not.
 4. Click `Ok` and wait for the plugin to finish.
-5. In the `Library` tab, navigate to `Metadata → Read Metadata from Files`.
-6. Photos in the `Develop` tab are now desqueezed.
+5. **ARW files:** the new desqueezed DNGs appear in your catalog automatically (in the same folder as the ARWs). Your ARWs are unchanged.
+6. **DNG files edited in place:** in the `Library` tab, select them and use `Metadata → Read Metadata from Files`.
+7. Photos in the `Develop` tab are now desqueezed.
+
+### Troubleshooting
+
+- **"Adobe DNG Converter not found"**: check that the app is at `/Applications/Adobe DNG Converter.app`.
+- **"exiftool not found"**: run `brew install exiftool`.
+- **Nothing happens for an ARW**: a `.dng` with the same name may already exist in that folder; delete it and run again.
+- **Image looks the wrong shape**: re-run with the correct squeeze factor and axis on a fresh copy of the DNG.
 
 ## 🚧 Next Steps / Roadmap
 
@@ -94,6 +115,9 @@ You should now see **"Adrian Kulik Anamorphic Utilities → Desqueezer"** as an 
 
 - [x] **Add a README GIF to ilustrate how this plugin works**  
        Show users how to install and use this plugin in a visual manner.
+
+- [x] **Sony ARW support** (this fork)  
+       Convert ARW to DNG with Adobe DNG Converter, then apply the desqueeze factor.
 
 - [ ] **Windows Compatibility**  
        Make the plugin functional on Windows machines using PowerShell or `.bat` alternatives.
