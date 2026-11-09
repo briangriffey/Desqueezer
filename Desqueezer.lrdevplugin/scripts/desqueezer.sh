@@ -1,13 +1,17 @@
 #!/bin/bash
 
-# bash_desqueeze_anamorphic.sh
-# This script applies an anamorphic desqueeze factor to DNG files
-# using exiftool, setting the DefaultScale metadata tag.
-# CAUTION: It's a destructive action. This script overwrites metadata.
+# desqueezer.sh
+# Applies an anamorphic desqueeze factor using exiftool (DNG DefaultScale tag).
+#  - DNG files are modified in place (metadata only).
+#  - Raw files that are not DNG (e.g. Sony .ARW) are first converted to a new
+#    .dng next to the original using Adobe DNG Converter; the original is left
+#    untouched and only the new .dng gets the DefaultScale tag.
 
 echo "Starting anamorphic desqueeze..."
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+DNG_CONVERTER="/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter"
 
 if ! command -v exiftool &>/dev/null; then
     echo "Error: exiftool not found."
@@ -15,7 +19,7 @@ if ! command -v exiftool &>/dev/null; then
 fi
 
 if [ "$#" -lt 3 ]; then
-    echo "Usage: $0 <squeezeFactor> <axis: Horizontal|Vertical> <dng files...>"
+    echo "Usage: $0 <squeezeFactor> <axis: Horizontal|Vertical> <raw/dng files...>"
     exit 1
 fi
 
@@ -23,7 +27,6 @@ squeezeFactor="$1"
 axis="$2"
 shift 2
 
-# Determine scale values depending on axis
 if [ "$axis" = "Horizontal" ]; then
     scale="$squeezeFactor 1"
 elif [ "$axis" = "Vertical" ]; then
@@ -33,18 +36,48 @@ else
     exit 1
 fi
 
-for dng_file in "$@"; do
-    if [ -f "$dng_file" ]; then
-        echo "Desqueezing: $dng_file with factor $squeezeFactor on axis $axis"
-        if exiftool -DefaultScale="$scale" -overwrite_original "$dng_file"; then
-            echo "Success: $dng_file"
-        else
-            echo "Failed to desqueeze: $dng_file"
+failures=0
+
+for file in "$@"; do
+    if [ ! -f "$file" ]; then
+        echo "Skipping (not found): $file"
+        continue
+    fi
+
+    lower="$(printf '%s' "$file" | tr '[:upper:]' '[:lower:]')"
+    target="$file"
+
+    if [[ "$lower" != *.dng ]]; then
+        if [ ! -x "$DNG_CONVERTER" ]; then
+            echo "Error: Adobe DNG Converter not found at: $DNG_CONVERTER"
+            failures=$((failures + 1))
+            continue
         fi
+        dir="$(dirname "$file")"
+        base="$(basename "$file")"
+        target="$dir/${base%.*}.dng"
+        if [ -e "$target" ]; then
+            echo "Skipping (DNG already exists, delete it to redo): $target"
+            failures=$((failures + 1))
+            continue
+        fi
+        echo "Converting to DNG: $file"
+        # -c lossless compression, -p1 medium preview, -d output dir
+        if ! "$DNG_CONVERTER" -c -p1 -d "$dir" "$file" || [ ! -f "$target" ]; then
+            echo "Failed to convert: $file"
+            failures=$((failures + 1))
+            continue
+        fi
+    fi
+
+    echo "Desqueezing: $target with factor $squeezeFactor on axis $axis"
+    if exiftool -DefaultScale="$scale" -overwrite_original "$target"; then
+        echo "Success: $target"
     else
-        echo "Skipping (not found): $dng_file"
+        echo "Failed to desqueeze: $target"
+        failures=$((failures + 1))
     fi
 done
 
 echo "Done."
-exit 0
+[ "$failures" -eq 0 ] && exit 0 || exit 1

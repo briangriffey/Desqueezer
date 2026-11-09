@@ -21,22 +21,32 @@ local function callDesqueezeBashScript(squeezeFactor, axis)
 		local selectedPhotos = catalog:getTargetPhotos()
 
 		if #selectedPhotos == 0 then
-			LrDialogs.message("No Photos Selected", "Please select one or more DNG files.", "info")
+			LrDialogs.message("No Photos Selected", "Please select one or more ARW or DNG files.", "info")
 			return
 		end
 
-		local dngPaths = {}
+		local function shellQuote(str)
+			return "'" .. str:gsub("'", "'\\''") .. "'"
+		end
+
+		-- DNGs are edited in place; ARW files get a new DNG created next to them.
+		local quotedPaths = {}
+		local newDngPaths = {}
 		for _, photo in ipairs(selectedPhotos) do
 			local path = photo:getRawMetadata("path")
-			if path:lower():match("%.dng$") then
-				table.insert(dngPaths, '"' .. path .. '"')
+			local lower = path:lower()
+			if lower:match("%.dng$") then
+				table.insert(quotedPaths, shellQuote(path))
+			elseif lower:match("%.arw$") then
+				table.insert(quotedPaths, shellQuote(path))
+				table.insert(newDngPaths, (path:gsub("%.[^./\\]+$", ".dng")))
 			end
 		end
 
-		if #dngPaths == 0 then
+		if #quotedPaths == 0 then
 			LrDialogs.message(
-				"No DNGs Found",
-				"Selected photos do not include any DNG files. Please convert your photos first.",
+				"No supported files",
+				"Selected photos do not include any DNG or Sony ARW files.",
 				"info"
 			)
 			return
@@ -59,17 +69,31 @@ local function callDesqueezeBashScript(squeezeFactor, axis)
 			.. " "
 			.. axis
 			.. " "
-			.. table.concat(dngPaths, " ")
+			.. table.concat(quotedPaths, " ")
 		outputToLog("Running command: " .. command)
 
 		local result = LrTasks.execute(command)
 
+		-- Import the DNGs that were created from ARW files.
+		local imported = 0
+		catalog:withWriteAccessDo("Add desqueezed DNGs", function()
+			for _, dngPath in ipairs(newDngPaths) do
+				if LrFileUtils.exists(dngPath) and not catalog:findPhotoByPath(dngPath) then
+					catalog:addPhoto(dngPath)
+					imported = imported + 1
+				end
+			end
+		end)
+
 		if result == 0 then
-			LrDialogs.message(
-				"Desqueeze Complete",
-				"Lightroom metadata was updated by an external tool.\n\nTo apply the changes:\nGo to Metadata → Read Metadata from File.",
-				"info"
-			)
+			local msg = "Desqueeze complete."
+			if imported > 0 then
+				msg = msg .. "\n\n" .. imported .. " new DNG file(s) were created next to your ARW files and added to the catalog."
+			end
+			if #quotedPaths > #newDngPaths then
+				msg = msg .. "\n\nFor existing DNGs, select them and use Metadata → Read Metadata from Files."
+			end
+			LrDialogs.message("Desqueeze Complete", msg, "info")
 		else
 			LrDialogs.message("Error", "Script execution failed.")
 			outputToLog("Script failed with exit code: " .. tostring(result))

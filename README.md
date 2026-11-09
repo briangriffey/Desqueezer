@@ -6,6 +6,9 @@
 
 ![Animated logotype](https://raw.githubusercontent.com/adriankulik/Desqueezer/aacdfea07d6af846b4a4357e2cb841df042e3236/assets/Desqueezer_logo.gif)
 
+> **Fork note:** This is a fork of [adriankulik/Desqueezer](https://github.com/adriankulik/Desqueezer) that adds support for Sony `.ARW` files (tested design target: Sony a7II with a 1.6x anamorphic lens). Huge thanks to **Adrian Kulik** for creating the original plugin and releasing it under the MIT license. All the core idea and structure here is his work.
+> The ARW support has not been verified end to end in Lightroom yet; please test on copies of your files first.
+
 ---
 
 ## ⚙️ Prerequisites
@@ -29,13 +32,12 @@ From the root of the plugin directory, run:
 chmod +x ./scripts/desqueezer.sh
 ```
 
-### 3. Use DNG Files Only
+### 3. Install Adobe DNG Converter (for Sony ARW and other non-DNG raws)
 
-This plugin only works on DNG files.
-If your camera does not shoot in DNG format, export your photos to DNG:
-
-1. Create a subfolder
-2. Export the images as DNG
+This fork also handles Sony `.ARW` files (the `DSC0xxxx.ARW` files from an a7 camera).
+For each selected ARW it uses the free [Adobe DNG Converter](https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html)
+to create a `.dng` next to the original, sets the desqueeze factor on the new DNG,
+and adds it to your catalog. The ARW is never modified. Selected DNGs are edited in place as before.
 
 ### 4. (Optional) Install other required `brew` packages
 
